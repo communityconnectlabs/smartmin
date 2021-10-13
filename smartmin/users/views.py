@@ -510,6 +510,13 @@ class Login(LoginView):
         if len(failures) >= failed_login_limit:
             return HttpResponseRedirect(reverse('users.user_failed'))
 
+        # pass through the normal login process if 2fa not enabled
+        if not getattr(settings, 'TWO_FACTOR_ENABLED', True):
+            if form_is_valid:
+                return self.form_valid(form)
+            else:
+                return self.form_invalid(form)
+
         if not is_login_allowed:
             return self.form_invalid(form)
 
