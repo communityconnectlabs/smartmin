@@ -485,11 +485,16 @@ class Login(LoginView):
         failed_login_limit = getattr(settings, 'USER_FAILED_LOGIN_LIMIT', 5)
         authy_magic_pass = getattr(settings, 'AUTHY_MAGIC_PASS', None)
 
-        username = form.cleaned_data.get('username')
+        username = self.get_username(form)
+
+        if not username:
+            return self.form_invalid(form)
+
         user = get_user_model().objects.filter(username__iexact=username).first()
 
         authy_headers = {'x-authy-api-key': getattr(settings, 'AUTHY_API_KEY', '')}
         valid_password = False
+        is_login_allowed = False
 
         # this could be a valid login by a user
         if user:
