@@ -593,7 +593,7 @@ class Login(LoginView):
             response = requests.request("GET", authy_url_api, headers=authy_headers)
             response_json = response.json()
             if not response_json.get('success'):
-                FailedLogin.objects.create(user=user)
+                FailedLogin.objects.create(username=username)
                 messages.error(request, _('Login failed: incorrect SMS or Authy code'))
                 return HttpResponseRedirect(reverse('users.user_login'))
 
