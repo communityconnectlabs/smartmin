@@ -3,21 +3,20 @@
 import json
 import operator
 from functools import reduce
+from urllib.parse import quote as urlquote
 
 import django.forms.models as model_forms
 from django import forms
 from django.conf import settings
-from django.conf.urls import url
 from django.contrib import messages
 from django.contrib.auth import REDIRECT_FIELD_NAME
 from django.core.exceptions import ImproperlyConfigured
-from django.urls import reverse
+from django.urls import reverse, re_path
 from django.db import IntegrityError
 from django.db.models import Q
 from django.http import HttpResponseRedirect, HttpResponse, JsonResponse
-from django.utils.encoding import force_text
-from django.utils.http import urlquote
-from django.utils.translation import ugettext_lazy as _
+from django.utils.encoding import force_str
+from django.utils.translation import gettext_lazy as _
 from django.views.generic.edit import ModelFormMixin, UpdateView, CreateView, ProcessFormView, FormView
 from django.views.generic.base import TemplateView
 from django.views.generic import DetailView, ListView
@@ -49,7 +48,7 @@ def smart_url(url, obj=None):
             return url % obj.id
 
 
-class SmartView(object):
+class SmartView:
     fields = None
     exclude = None
     field_config = {}
@@ -368,19 +367,21 @@ class SmartView(object):
         Responsible for turning our context into an dict that can then be serialized into an
         JSON response.
         """
-        return context
+        raise NotImplementedError("this view can't be rendered as JSON")
 
     def render_to_response(self, context, **response_kwargs):
         """
         Overloaded to deal with _format arguments.
         """
-        # should we actually render in json?
+        # should we try rendering as JSON?
         if '_format' in self.request.GET and self.request.GET['_format'] == 'json':
-            return JsonResponse(self.as_json(context), safe=False)
+            try:
+                return JsonResponse(self.as_json(context), safe=False)
+            except NotImplementedError:
+                pass
 
         # otherwise, return normally
-        else:
-            return super(SmartView, self).render_to_response(context)
+        return super(SmartView, self).render_to_response(context)
 
 
 class SmartTemplateView(SmartView, TemplateView):
@@ -535,7 +536,7 @@ class SmartListView(SmartView, ListView):
         title = super(SmartListView, self).derive_title()
 
         if not title:
-            return force_text(self.model._meta.verbose_name_plural).title()
+            return force_str(self.model._meta.verbose_name_plural).title()
         else:
             return title
 
@@ -890,10 +891,16 @@ class SmartFormMixin(object):
         """
         default = None
 
-        for form_field in self.form:
-            if form_field.name == field:
-                default = form_field.label
-                break
+        # model forms will have meta inherited from their model that includes labels
+        meta_labels = self.form._meta.labels if hasattr(self.form, "_meta") else {}
+
+        if meta_labels and field in meta_labels:
+            default = meta_labels[field]
+        else:
+            for form_field in self.form:
+                if form_field.name == field:
+                    default = form_field.label
+                    break
 
         return super(SmartFormMixin, self).lookup_field_label(context, field, default=default)
 
@@ -902,14 +909,20 @@ class SmartFormMixin(object):
         Looks up the help text for the passed in field.
 
         This is overloaded so that we can check whether our form has help text set
-        explicitely.  If so, we will pass this as the default to our parent function.
+        explicitly.  If so, we will pass this as the default to our parent function.
         """
         default = None
 
-        for form_field in self.form:
-            if form_field.name == field:
-                default = form_field.help_text
-                break
+        # model forms will have meta inherited from their model that includes help texts
+        meta_help_texts = self.form._meta.help_texts if hasattr(self.form, "_meta") else {}
+
+        if meta_help_texts and field in meta_help_texts:
+            default = meta_help_texts[field]
+        else:
+            for form_field in self.form:
+                if form_field.name == field:
+                    default = form_field.help_text
+                    break
 
         return super(SmartFormMixin, self).lookup_field_help(field, default=default)
 
@@ -1064,7 +1077,7 @@ class SmartModelFormView(SmartFormMixin, SmartSingleObjectView, ModelFormMixin):
         Derives our title from our object
         """
         if not self.title:
-            return _("Edit %s") % force_text(self.model._meta.verbose_name).title()
+            return _("Edit %s") % force_str(self.model._meta.verbose_name).title()
         else:
             return self.title
 
@@ -1280,7 +1293,7 @@ class SmartCreateView(SmartModelFormView, CreateView):
         Derives our title from our object
         """
         if not self.title:
-            return _("Create %s") % force_text(self.model._meta.verbose_name).title()
+            return _("Create %s") % force_str(self.model._meta.verbose_name).title()
         else:
             return self.title
 
@@ -1502,6 +1515,6 @@ class SmartCRUDL(object):
             view_class = self.view_for_action(action)
             view_pattern = self.pattern_for_view(view_class, action)
             name = self.url_name_for_action(action)
-            urls.append(url(view_pattern, view_class.as_view(), name=name))
+            urls.append(re_path(view_pattern, view_class.as_view(), name=name))
 
         return urls

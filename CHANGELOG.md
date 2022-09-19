@@ -1,3 +1,33 @@
+v4.1.0
+----------
+ * Remove broken and unused middleware classes
+ * Bump pillow from 8.4.0 to 9.0.0
+
+v4.0.1
+----------
+ * Add NOOP migrations created by change in Django 4.0
+
+v4.0.0
+----------
+ * Use timezone.utc instead of pytz.UTC
+ * Update allowed Django versions to < 4.1 and replace removed functions
+
+v3.1.0
+----------
+ * Update to celery 5.1
+
+v3.0.1
+----------
+ * Replace the default SmartView.as_json implementation with a NotImplementedError as it can never work
+
+v3.0.0
+----------
+ * Ad support for Django 3.2 LTS
+
+v2.3.9
+----------
+ * Add support for Form.Meta.labels and Form.Meta.help_texts
+
 v2.3.8
 ----------
  * Fix pagination index

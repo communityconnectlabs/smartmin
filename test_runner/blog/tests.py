@@ -153,7 +153,10 @@ class PostTest(SmartminTest):
         date_field = response.context['form'].fields['written_on']
         self.assertIsInstance(date_field.widget, DatePickerWidget)
         self.assertEqual(date_field.widget.format, "%B %d, %Y")
-        self.assertEqual(date_field.input_formats, ['%B %d, %Y', '%Y-%m-%d', '%m/%d/%Y', '%m/%d/%y'])
+        self.assertIn('%B %d, %Y', date_field.input_formats)
+        self.assertIn('%Y-%m-%d', date_field.input_formats)
+        self.assertIn('%m/%d/%Y', date_field.input_formats)
+        self.assertIn('%m/%d/%y', date_field.input_formats)
 
         post_data = dict(title="New Post", body="This is a new post", order=1, tags="post")
         self.client.post(reverse('blog.post_create'), post_data, follow=True)
@@ -198,6 +201,21 @@ class PostTest(SmartminTest):
         self.client.login(username='author', password='author')
         response = self.client.get(reverse('blog.post_list'))
         self.assertEquals(['blog/post_list.html', 'smartmin/list.html'], response.template_name)
+
+    def test_read(self):
+        post = Post.objects.create(title="A First Post", body="Apples", order=3, tags="post",
+                                    created_by=self.author, modified_by=self.author)
+
+        read_url = reverse('blog.post_read', args=[post.id])
+
+        response = self.client.get(read_url)
+        self.assertEqual(post, response.context['object'])
+        self.assertContains(response, '<td class="read-label">Title</td>')
+        self.assertContains(response, '<td class="read-value">A First Post&nbsp;</td>')
+
+        # because this view doesn't override as_json, _format=json is ignored
+        response = self.client.get(read_url + "?_format=json")
+        self.assertContains(response, "<title>Smartmin</title>")
 
     def test_list(self):
         post1 = Post.objects.create(title="A First Post", body="Apples", order=3, tags="post",
@@ -471,7 +489,7 @@ class PostTest(SmartminTest):
             self.assertEqual(Post.get_import_file_headers(open_file), ['urn:tel', 'name', 'field:email-address'])
 
     def test_csv_import(self):
-        with self.settings(CELERY_ALWAYS_EAGER=True, CELERY_RESULT_BACKEND='cache', CELERY_CACHE_BACKEND='memory'):
+        with self.settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_RESULT_BACKED='cache'):
             import_url = reverse('blog.post_csv_import')
 
             response = self.client.get(import_url)
