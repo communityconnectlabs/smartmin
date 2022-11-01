@@ -49,7 +49,7 @@ def smart_url(url, obj=None):
             return url % obj.id
 
 
-class SmartView(object):
+class SmartView:
     fields = None
     exclude = None
     field_config = {}
@@ -368,19 +368,21 @@ class SmartView(object):
         Responsible for turning our context into an dict that can then be serialized into an
         JSON response.
         """
-        return context
+        raise NotImplementedError("this view can't be rendered as JSON")
 
     def render_to_response(self, context, **response_kwargs):
         """
         Overloaded to deal with _format arguments.
         """
-        # should we actually render in json?
+        # should we try rendering as JSON?
         if '_format' in self.request.GET and self.request.GET['_format'] == 'json':
-            return JsonResponse(self.as_json(context), safe=False)
+            try:
+                return JsonResponse(self.as_json(context), safe=False)
+            except NotImplementedError:
+                pass
 
         # otherwise, return normally
-        else:
-            return super(SmartView, self).render_to_response(context)
+        return super(SmartView, self).render_to_response(context)
 
 
 class SmartTemplateView(SmartView, TemplateView):
@@ -890,10 +892,16 @@ class SmartFormMixin(object):
         """
         default = None
 
-        for form_field in self.form:
-            if form_field.name == field:
-                default = form_field.label
-                break
+        # model forms will have meta inherited from their model that includes labels
+        meta_labels = self.form._meta.labels if hasattr(self.form, "_meta") else {}
+
+        if meta_labels and field in meta_labels:
+            default = meta_labels[field]
+        else:
+            for form_field in self.form:
+                if form_field.name == field:
+                    default = form_field.label
+                    break
 
         return super(SmartFormMixin, self).lookup_field_label(context, field, default=default)
 
@@ -902,14 +910,20 @@ class SmartFormMixin(object):
         Looks up the help text for the passed in field.
 
         This is overloaded so that we can check whether our form has help text set
-        explicitely.  If so, we will pass this as the default to our parent function.
+        explicitly.  If so, we will pass this as the default to our parent function.
         """
         default = None
 
-        for form_field in self.form:
-            if form_field.name == field:
-                default = form_field.help_text
-                break
+        # model forms will have meta inherited from their model that includes help texts
+        meta_help_texts = self.form._meta.help_texts if hasattr(self.form, "_meta") else {}
+
+        if meta_help_texts and field in meta_help_texts:
+            default = meta_help_texts[field]
+        else:
+            for form_field in self.form:
+                if form_field.name == field:
+                    default = form_field.help_text
+                    break
 
         return super(SmartFormMixin, self).lookup_field_help(field, default=default)
 

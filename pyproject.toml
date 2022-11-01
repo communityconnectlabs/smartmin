@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "smartmin"
-version = "2.3.8"
+version = "3.1.0"
 description = "Scaffolding system for Django object management."
 authors = ["Nyaruka Ltd <code@nyaruka.com>"]
 readme = "README.md"
@@ -23,8 +23,8 @@ repository = "http://github.com/nyaruka/smartmin"
 
 [tool.poetry.dependencies]
 python = "^3.6"
-Django = "<3.0"
-celery = "<5.0"
+Django = ">= 2.2, < 4.0"
+celery = ">= 4.4.6"
 pytz = "*"
 redis = "^3.5.3"
 sqlparse = "^0.4.1"
@@ -34,7 +34,7 @@ phonenumbers = "^8.12.24"
 django-countries = "^7.0"
 
 [tool.poetry.dev-dependencies]
-psycopg2 = "^2.8.6"
+psycopg2 = "< 2.9"  # https://github.com/psycopg/psycopg2/issues/1293
 funcsigs = "^1.0.2"
 flake8 = "^3.8.4"
 Pillow = "^8.1.0"

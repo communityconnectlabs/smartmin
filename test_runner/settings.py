@@ -22,6 +22,8 @@ DATABASES = {
     }
 }
 
+DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'
+
 # Local time zone for this installation. Choices can be found here:
 # http://en.wikipedia.org/wiki/List_of_tz_zones_by_name
 # although not all choices may be available on all operating systems.
@@ -208,10 +210,5 @@ LOGIN_REDIRECT_URL = "/blog/post/"
 # -----------------------------------------------------------------------------------
 # Async tasks with celery
 # -----------------------------------------------------------------------------------
-
-CELERY_RESULT_BACKEND = 'database'
-
-BROKER_BACKEND = 'redis'
-BROKER_HOST = 'localhost'
-BROKER_PORT = 6379
-BROKER_VHOST = '4'
+CELERY_RESULT_BACKED = 'database'
+CELERY_BROKER_URL = 'redis://localhost:6379/4'
