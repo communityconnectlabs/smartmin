@@ -1,3 +1,40 @@
+v5.0.2 (2024-05-16)
+-------------------------
+ * Add SMARTMIN_DEFAULT_MESSAGES setting to allow disabling of automatic messages for create and update views
+
+v5.0.1 (2024-04-17)
+-------------------------
+ * Merge pull request #185 from nyaruka/dependabot/pip/sqlparse-0.5.0
+ * Bump sqlparse from 0.4.4 to 0.5.0
+ * Merge pull request #184 from nyaruka/dependabot/pip/pillow-10.3.0
+ * Bump pillow from 10.2.0 to 10.3.0
+ * Merge pull request #183 from nyaruka/dependabot/pip/black-24.3.0
+ * Merge pull request #182 from nyaruka/dependabot/pip/django-5.0.3
+ * Bump black from 23.11.0 to 24.3.0
+ * Bump django from 5.0 to 5.0.3
+ * Merge pull request #180 from nyaruka/dependabot/pip/pillow-10.2.0
+ * Bump pillow from 10.1.0 to 10.2.0
+
+v5.0.0 (2023-12-06)
+-------------------------
+ * Support django 5.0
+
+v4.2.5 (2023-11-03)
+-------------------------
+ * Merge pull request #178 from nyaruka/update-deps
+ * Update deps
+
+v4.2.4 (2023-10-05)
+-------------------------
+ * Merge pull request #176 from nyaruka/dependabot/pip/pillow-10.0.1
+ * Bump pillow from 9.5.0 to 10.0.1
+
+v4.2.3 (2023-08-15)
+-------------------------
+ * Fix for python 3.11
+ * Update CI test versions and dev deps
+ * Allow all views to override title using title field
+
 v4.2.2 (2023-02-20)
 -------------------------
  * Bump django from 4.1.6 to 4.1.7
