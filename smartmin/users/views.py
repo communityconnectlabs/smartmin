@@ -253,9 +253,10 @@ class UserCRUDL(SmartCRUDL):
         def get_form_class(self):
             form = UserUpdateForm
             user = self.object
-            user_settings = get_user_model().get_settings(user)
-            form.base_fields['tel'].initial = user_settings.tel
-            form.base_fields['authy_id'].initial = user_settings.authy_id
+            user_settings = user.usersettings.last()
+            if user_settings:
+                form.base_fields['tel'].initial = user_settings.tel
+                form.base_fields['authy_id'].initial = user_settings.authy_id
             return form
 
         def post_save(self, obj):
@@ -273,10 +274,11 @@ class UserCRUDL(SmartCRUDL):
                 PasswordHistory.objects.create(user=obj, password=obj.password)
 
             if 'tel' in self.form.cleaned_data or 'authy_id' in self.form.cleaned_data:
-                user_settings = get_user_model().get_settings(self.object)
-                user_settings.tel = self.form.cleaned_data['tel']
-                user_settings.authy_id = self.form.cleaned_data['authy_id']
-                user_settings.save(update_fields=['tel', 'authy_id'])
+                user_settings = self.object.usersettings.last()
+                if user_settings:
+                    user_settings.tel = self.form.cleaned_data['tel']
+                    user_settings.authy_id = self.form.cleaned_data['authy_id']
+                    user_settings.save(update_fields=['tel', 'authy_id'])
 
             return obj
 
@@ -525,10 +527,10 @@ class Login(LoginView):
         if not is_login_allowed:
             return self.form_invalid(form)
 
-        user_settings = get_user_model().get_settings(user)
+        user_settings = user.usersettings.last()
 
         change_phone_number = request.POST.get('change_phone_number', 'false') == 'true'
-        if change_phone_number:
+        if change_phone_number and user_settings:
             user_settings.tel = None
             user_settings.save(update_fields=['tel'])
 
@@ -560,15 +562,16 @@ class Login(LoginView):
             response_json = response.json()
             if response_json.get('success', False):
                 authy_id = response_json['user']['id']
-                user_settings.tel = phonenumbers.format_number(phone, phonenumbers.PhoneNumberFormat.E164)
-                user_settings.authy_id = authy_id
-                user_settings.save(update_fields=['tel', 'authy_id'])
+                if user_settings:
+                    user_settings.tel = phonenumbers.format_number(phone, phonenumbers.PhoneNumberFormat.E164)
+                    user_settings.authy_id = authy_id
+                    user_settings.save(update_fields=['tel', 'authy_id'])
             else:
                 messages.error(request, 'Authy message: %s' % response_json.get('message'))
                 return HttpResponseRedirect(reverse('users.user_login'))
 
         # Redirecting user to add cell phone or asking the Authy code
-        if not user_settings.tel:
+        if user_settings and not user_settings.tel:
             form_is_valid = False
             messages.info(request, _(
                 'Please provide your phone number for authentication purposes to ensure your login is secure.'
