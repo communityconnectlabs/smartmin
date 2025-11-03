@@ -73,8 +73,6 @@ class UserUpdateForm(UserForm):
 
     tel = forms.CharField(label=_("Phone Number"), max_length=16, required=False)
 
-    authy_id = forms.CharField(label=_("Authy ID"), max_length=100, required=False)
-
     def clean_new_password(self):
         password = self.cleaned_data['new_password']
 
@@ -239,8 +237,9 @@ class UserCRUDL(SmartCRUDL):
     class Update(SmartUpdateView):
         template_name = "smartmin/users/user_update.html"
         success_message = "User saved successfully."
-        fields = ('username', 'new_password', 'first_name', 'last_name', 'email', 'tel', 'authy_id', 'groups',
-                  'is_active', 'last_login')
+        fields = (
+            'username', 'new_password', 'first_name', 'last_name', 'email', 'tel', 'groups', 'is_active', 'last_login'
+        )
         field_config = {
             'last_login': dict(readonly=True, label=_("Last Login")),
             'is_active': dict(label=_("Is Active"), help=_("Whether this user is allowed to log into the site")),
@@ -255,7 +254,6 @@ class UserCRUDL(SmartCRUDL):
             user = self.object
             user_settings = get_user_model().get_settings(user)
             form.base_fields['tel'].initial = user_settings.tel
-            form.base_fields['authy_id'].initial = user_settings.authy_id
             return form
 
         def post_save(self, obj):
@@ -272,11 +270,10 @@ class UserCRUDL(SmartCRUDL):
                 FailedLogin.objects.filter(username__iexact=self.object.username).delete()
                 PasswordHistory.objects.create(user=obj, password=obj.password)
 
-            if 'tel' in self.form.cleaned_data or 'authy_id' in self.form.cleaned_data:
+            if 'tel' in self.form.cleaned_data:
                 user_settings = get_user_model().get_settings(self.object)
                 user_settings.tel = self.form.cleaned_data['tel']
-                user_settings.authy_id = self.form.cleaned_data['authy_id']
-                user_settings.save(update_fields=['tel', 'authy_id'])
+                user_settings.save(update_fields=['tel'])
 
             return obj
 
@@ -448,10 +445,10 @@ class UserCRUDL(SmartCRUDL):
 
 class Login(LoginView):
     template_name = 'smartmin/users/login.html'
-    authy_extra_data = dict()
+    extra_context_data = dict()
 
-    def set_authy_extra_data(self, data):
-        self.authy_extra_data = data
+    def set_extra_context_data(self, data):
+        self.extra_context_data = data
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -471,7 +468,7 @@ class Login(LoginView):
                     country_codes_tel.append(cc_obj)
 
         context['countries'] = country_codes_tel
-        context.update(self.authy_extra_data)
+        context.update(self.extra_context_data)
 
         return context
 
@@ -480,19 +477,14 @@ class Login(LoginView):
 
         # clean form data
         form_is_valid = form.is_valid()
-
         lockout_timeout = getattr(settings, 'USER_LOCKOUT_TIMEOUT', 10)
         failed_login_limit = getattr(settings, 'USER_FAILED_LOGIN_LIMIT', 5)
-        authy_magic_pass = getattr(settings, 'AUTHY_MAGIC_PASS', None)
 
         username = self.get_username(form)
-
         if not username:
             return self.form_invalid(form)
 
         user = get_user_model().objects.filter(username__iexact=username).first()
-
-        authy_headers = {'x-authy-api-key': getattr(settings, 'AUTHY_API_KEY', '')}
         valid_password = False
         is_login_allowed = False
 
@@ -517,10 +509,7 @@ class Login(LoginView):
 
         # pass through the normal login process if 2fa not enabled
         if not getattr(settings, 'TWO_FACTOR_ENABLED', True):
-            if form_is_valid:
-                return self.form_valid(form)
-            else:
-                return self.form_invalid(form)
+            return self.form_valid(form) if form_is_valid else self.form_invalid(form)
 
         if not is_login_allowed:
             return self.form_invalid(form)
@@ -534,9 +523,7 @@ class Login(LoginView):
 
         cellphone = request.POST.get('tel', None)
         country_code = request.POST.get('country_code', None)
-        authy_code = request.POST.get('authy_code', None)
-
-        authy_base_url = 'https://api.authy.com/protected/json/%s'
+        verification_code = request.POST.get('verification_code', None)
 
         if cellphone and country_code:
             cellphone_w_cc = '+%s%s' % (country_code, cellphone)
@@ -545,56 +532,33 @@ class Login(LoginView):
             except Exception:
                 messages.error(request, 'Invalid phone number')
                 return self.form_invalid(form)
+            user_settings.tel = phonenumbers.format_number(phone, phonenumbers.PhoneNumberFormat.E164)
+            user_settings.save(update_fields=['tel'])
 
-            # Generating Authy user
-            # Making sure that username (email) does not have + because Twilio considers as invalid email
-            if '+' in username:
-                username = username.replace('+', '_')
-
-            payload = 'user%5Bemail%5D={}&user%5Bcellphone%5D={}&user%5Bcountry_code%5D={}'.format(username, cellphone,
-                                                                                                   country_code)
-            create_user_header = authy_headers
-            create_user_header.update({'content-type': 'application/x-www-form-urlencoded'})
-            authy_url_api = authy_base_url % 'users/new'
-            response = requests.request("POST", authy_url_api, data=payload, headers=create_user_header)
-            response_json = response.json()
-            if response_json.get('success', False):
-                authy_id = response_json['user']['id']
-                user_settings.tel = phonenumbers.format_number(phone, phonenumbers.PhoneNumberFormat.E164)
-                user_settings.authy_id = authy_id
-                user_settings.save(update_fields=['tel', 'authy_id'])
-            else:
-                messages.error(request, 'Authy message: %s' % response_json.get('message'))
-                return HttpResponseRedirect(reverse('users.user_login'))
-
-        # Redirecting user to add cell phone or asking the Authy code
+        # Redirecting user to add cell phone or asking the Verification code
         if not user_settings.tel:
             form_is_valid = False
             messages.info(request, _(
                 'Please provide your phone number for authentication purposes to ensure your login is secure.'
             ))
-            self.set_authy_extra_data(dict(
+            self.set_extra_context_data(dict(
                 no_cellphone=True,
                 no_recaptcha=True
             ))
-        elif not authy_code:
+        elif not verification_code:
             form_is_valid = False
-            authy_url_api = authy_base_url % 'sms/%s' % user_settings.authy_id
-            requests.request("GET", authy_url_api, headers=authy_headers)
-            self.set_authy_extra_data(dict(
-                no_authy_code=True,
+            # todo: get preferred way of verification
+            # todo: send sms or email with verification code
+            self.set_extra_context_data(dict(
+                no_verification_code=True,
                 no_recaptcha=True
             ))
-        elif authy_code and authy_code == authy_magic_pass:
-            # Allow login by Authy Magic Password
-            pass
-        elif authy_code:
-            authy_url_api = authy_base_url % 'verify/%s/%s' % (authy_code, user_settings.authy_id)
-            response = requests.request("GET", authy_url_api, headers=authy_headers)
-            response_json = response.json()
-            if not response_json.get('success'):
+        elif verification_code:
+            is_verified = False
+            # todo: verify the user provided code
+            if not is_verified:
                 FailedLogin.objects.create(username=username)
-                messages.error(request, _('Login failed: incorrect SMS or Authy code'))
+                messages.error(request, _('Login failed: incorrect verification code'))
                 return HttpResponseRedirect(reverse('users.user_login'))
 
         # pass through the normal login process
