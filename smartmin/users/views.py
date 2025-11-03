@@ -1,6 +1,6 @@
 import random
 import string
-import requests
+import logging
 
 import phonenumbers
 
@@ -25,6 +25,9 @@ from smartmin.views import SmartCRUDL, SmartView, SmartFormView, SmartListView, 
 from .models import RecoveryToken, PasswordHistory, FailedLogin, is_password_complex
 
 from smartmin.users.utils import ALL_COUNTRIES, COUNTRY_CALLING_CODES
+
+
+logger = logging.getLogger(__name__)
 
 
 class UserForm(forms.ModelForm):
@@ -536,7 +539,7 @@ class Login(LoginView):
             user_settings.save(update_fields=['tel'])
 
         # Redirecting user to add cell phone or asking the Verification code
-        if not user_settings.tel:
+        if user_settings.verification_type == 0 and not user_settings.tel:
             form_is_valid = False
             messages.info(request, _(
                 'Please provide your phone number for authentication purposes to ensure your login is secure.'
@@ -547,19 +550,26 @@ class Login(LoginView):
             ))
         elif not verification_code:
             form_is_valid = False
-            # todo: get preferred way of verification
-            # todo: send sms or email with verification code
-            self.set_extra_context_data(dict(
-                no_verification_code=True,
-                no_recaptcha=True
-            ))
+            try:
+                user.start_verification()
+                self.set_extra_context_data(dict(
+                    no_verification_code=True,
+                    no_recaptcha=True
+                ))
+            except Exception as e:  # noqa: wide exception to catch Twilio errors
+                logger.error(e)
+                messages.error(request, _("Sorry, we can't verify your credentials at the moment. Try again later."))
         elif verification_code:
-            is_verified = False
-            # todo: verify the user provided code
-            if not is_verified:
-                FailedLogin.objects.create(username=username)
-                messages.error(request, _('Login failed: incorrect verification code'))
-                return HttpResponseRedirect(reverse('users.user_login'))
+            try:
+                is_verified = user.complete_verification(verification_code)
+                if not is_verified:
+                    FailedLogin.objects.create(username=username)
+                    messages.error(request, _('Login failed: incorrect verification code'))
+                    return HttpResponseRedirect(reverse('users.user_login'))
+            except Exception as e: # noqa: wide exception to catch Twilio errors
+                form_is_valid = False
+                logger.error(e)
+                messages.error(request, _("Sorry, we can't verify your credentials at the moment. Try again later."))
 
         # pass through the normal login process
         if form_is_valid:
