@@ -55,9 +55,9 @@
                     </div>
                 </div>
             {% endif %}
-            {% if no_authy_code %}
+            {% if no_verification_code %}
                 <div class="mt-4">
-                    <temba-textinput name="authy_code" placeholder="{{_("SMS Code")|escapejs}}"></temba-textinput>
+                    <temba-textinput name="verification_code" placeholder="{{_("SMS Code")|escapejs}}"></temba-textinput>
                     <a href="javascript:resendCode();" class="mt-2">
                         {% trans "Resend code" %}
                     </a>
@@ -74,7 +74,7 @@
             {% endif %}
             <div class="md\:w-full">
                 <div class="'w-5/12 mt-2 text-right float-right">
-                    {% if no_authy_code %}
+                    {% if no_verification_code %}
                         <a href="javascript:changePhoneNumberProcess();">Change phone number?</a>
                     {% else %}
                         <a href="/users/user/forget/">Forgot your password?</a>
