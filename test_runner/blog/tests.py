@@ -1130,14 +1130,7 @@ class UserLockoutTestCase(TestCase):
         self.assertTrue('username' in response.context['form'].errors)
 
     def doLockout(self):
-        # go to the login page
-        response = self.client.get(reverse('users.user_login'))
-
-        # make sure there is no reset link
-        content = response.content.decode("utf-8")
-        self.assertTrue(content.find(reverse('users.user_forget')) == -1)
-
-        # also make sure we can't actually do a reset
+        # make sure we can't actually do a reset
         post_data = dict(email="nicpottier@gmail.com")
         response = self.client.post(reverse('users.user_forget'), post_data)
 

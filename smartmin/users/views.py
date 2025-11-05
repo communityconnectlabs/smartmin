@@ -255,8 +255,10 @@ class UserCRUDL(SmartCRUDL):
         def get_form_class(self):
             form = UserUpdateForm
             user = self.object
-            user_settings = get_user_model().get_settings(user)
-            form.base_fields['tel'].initial = user_settings.tel
+            user_model = get_user_model()
+            if hasattr(user_model, 'get_settings'):
+                user_settings = user_model.get_settings(user)
+                form.base_fields['tel'].initial = user_settings.tel
             return form
 
         def post_save(self, obj):
@@ -273,8 +275,9 @@ class UserCRUDL(SmartCRUDL):
                 FailedLogin.objects.filter(username__iexact=self.object.username).delete()
                 PasswordHistory.objects.create(user=obj, password=obj.password)
 
-            if 'tel' in self.form.cleaned_data:
-                user_settings = get_user_model().get_settings(self.object)
+            user_model = get_user_model()
+            if hasattr(user_model, 'get_settings') and 'tel' in self.form.cleaned_data:
+                user_settings = user_model.get_settings(self.object)
                 user_settings.tel = self.form.cleaned_data['tel']
                 user_settings.save(update_fields=['tel'])
 
@@ -511,7 +514,7 @@ class Login(LoginView):
             return HttpResponseRedirect(reverse('users.user_failed'))
 
         # pass through the normal login process if 2fa not enabled
-        if not getattr(settings, 'TWO_FACTOR_ENABLED', True):
+        if not getattr(settings, 'TWO_FACTOR_ENABLED', True) or not hasattr(get_user_model(), "get_settings"):
             return self.form_valid(form) if form_is_valid else self.form_invalid(form)
 
         if not is_login_allowed:
