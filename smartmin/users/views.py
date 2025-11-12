@@ -541,6 +541,14 @@ class Login(LoginView):
             user_settings.tel = phonenumbers.format_number(phone, phonenumbers.PhoneNumberFormat.E164)
             user_settings.save(update_fields=['tel'])
 
+        def update_verification_context():
+            self.set_extra_context_data(dict(
+                allow_code_resend=user_settings.verification_type in [0, 1],
+                allow_phone_update=user_settings.verification_type == 0,
+                no_verification_code=True,
+                no_recaptcha=True
+            ))
+
         # Redirecting user to add cell phone or asking the Verification code
         if user_settings.verification_type == 0 and not user_settings.tel:
             form_is_valid = False
@@ -555,20 +563,18 @@ class Login(LoginView):
             form_is_valid = False
             try:
                 user.start_verification()
-                self.set_extra_context_data(dict(
-                    no_verification_code=True,
-                    no_recaptcha=True
-                ))
+                update_verification_context()
             except Exception as e:  # noqa: wide exception to catch Twilio errors
                 logger.error(e)
                 messages.error(request, _("Sorry, we can't verify your credentials at the moment. Try again later."))
         elif verification_code:
             try:
-                is_verified = user.complete_verification(verification_code)
-                if not is_verified:
-                    FailedLogin.objects.create(username=username)
+                user_verified = user.complete_verification(verification_code)
+                if not user_verified:
+                    form_is_valid = False
                     messages.error(request, _('Login failed: incorrect verification code'))
-                    return HttpResponseRedirect(reverse('users.user_login'))
+                    FailedLogin.objects.create(username=username)
+                    update_verification_context()
             except Exception as e: # noqa: wide exception to catch Twilio errors
                 form_is_valid = False
                 logger.error(e)
