@@ -57,10 +57,12 @@
             {% endif %}
             {% if no_verification_code %}
                 <div class="mt-4">
-                    <temba-textinput name="verification_code" placeholder="{{_("SMS Code")|escapejs}}"></temba-textinput>
-                    <a href="javascript:resendCode();" class="mt-2">
-                        {% trans "Resend code" %}
-                    </a>
+                    <temba-textinput name="verification_code" placeholder="{{_("Verification Code")|escapejs}}"></temba-textinput>
+                    {% if allow_code_resend %}
+                      <a href="javascript:resendCode();" class="mt-2">
+                          {% trans "Resend code" %}
+                      </a>
+                    {% endif %}
                 </div>
                 <input id="change_phone_number" type="hidden" name="change_phone_number" value="">
             {% endif %}
@@ -74,7 +76,7 @@
             {% endif %}
             <div class="md\:w-full">
                 <div class="'w-5/12 mt-2 text-right float-right">
-                    {% if no_verification_code %}
+                    {% if allow_phone_update %}
                         <a href="javascript:changePhoneNumberProcess();">Change phone number?</a>
                     {% else %}
                         <a href="/users/user/forget/">Forgot your password?</a>
